@@ -57,14 +57,17 @@ int main()
   char* full_tally_file_name;
   char* test;
   char* working_dir;
+  uint8_t** matching_table;
   uint8_t* game;
   uint8_t* board;
   uint8_t* player;
   uint16_t* point;
   uint8_t* present_player;
-  uint8_t max_game;
+  uint16_t summary_row = 0;
+  uint8_t max_game = 0;
   int16_t foo = 0;
   int16_t tally_row[7] = {-1, -1, -1, -1, -1, -1, -1};
+  int16_t player_count = 0; // active player in the latest game
   int16_t part_count = 0; // participant count
   int16_t line_count = 0;
   int8_t header_count = 0;
@@ -74,8 +77,8 @@ int main()
   uint8_t buffer_index = 0;
   uint8_t sorted = 0;
   uint8_t found = 0;
-  int8_t table_map[2][7] = {-1,-1,-1,-1,-1,-1,-1};
-  int8_t max_column = 0;
+  int8_t table_map[2][7] = {{-1,-1,-1,-1,-1,-1,-1}, {-1,-1,-1,-1,-1,-1,-1}};
+  uint8_t max_column = 0;
   char buffer[256];
   char s2n[8];
   char tally_header[7][16] = {"game" , "board", "first player", "winner", "loser", "winner's score", "loser's score"};
@@ -125,9 +128,9 @@ int main()
       if(!((buffer[buffer_index+count_2] == ',') || (buffer[buffer_index+count_2] == 0))){found = 0;}
       if(found)
       {
-        table_map[0][count] = foo++;
+        table_map[0][count] = (int8_t)foo++;
         table_map[1][count] = header_count;
-        buffer_index += count_2 + 1;
+        buffer_index += (uint8_t)count_2 + 1;
       }
       header_count++;
     }
@@ -156,10 +159,10 @@ int main()
     }
   }
 
-  game = malloc(line_count * 2 * sizeof(uint8_t));
-  board = malloc(line_count * 2 * sizeof(uint8_t));
-  player = malloc(line_count * 2 * sizeof(uint8_t));
-  point = malloc(line_count * 2 * sizeof(uint16_t));
+  game =    malloc((unsigned int)line_count * 2 * sizeof(uint8_t));
+  board =   malloc((unsigned int)line_count * 2 * sizeof(uint8_t));
+  player =  malloc((unsigned int)line_count * 2 * sizeof(uint8_t));
+  point =   malloc((unsigned int)line_count * 2 * sizeof(uint16_t));
 
   winner_index = 0;
   loser_index = 0;
@@ -182,20 +185,20 @@ int main()
       }
       if(table_map[1][map_count] == count_2)
       {
-        sscanf(s2n, "%d", tally_row + table_map[0][map_count]);
+        sscanf(s2n, "%hd", tally_row + table_map[0][map_count]);
       }
-      buffer_index += 1 + count_3;
+      buffer_index = (uint8_t)(buffer_index + 1 + (uint8_t)count_3);
     }
-      game[winner_index] = tally_row[game_h];
-      if(tally_row[board_h] >> 7){printf("Warning: The number of board exceeds 255.");}
-      board[winner_index] = tally_row[board_h];
-      board[winner_index] |= (tally_row[winner_h] == tally_row[first_h]) << 7;
-      if(tally_row[winner_h] > part_count){printf("Warning: The winner's ID (%d) of game %d, board %d exceeds the number of participant (%d).", tally_row[winner_h], game[winner_index], board[winner_index], part_count);}
-      player[winner_index] = tally_row[winner_h];
-      if((point[winner_index] > 1000) || (point[loser_index] > 1000)){printf("Warning: The point of game %d, board %d is more than 1000 (%d vs %d). Maybe something fishy.", game[winner_index], board[winner_index], tally_row[winner_score_h], point[loser_score_h]);}
-      
       foo = tally_row[winner_score_h] - tally_row[loser_score_h];
-      if(foo < 0){printf("Warning: In game %d, board %d, the winner scored lower than loser (%d vs %d).", game[winner_index], board[winner_index], point[winner_index], point[loser_index]);}
+      if(tally_row[board_h] >> 7){printf("Warning: The number of board exceeds 255.");}
+      if(tally_row[winner_h] > part_count){printf("Warning: The winner's ID (%d) of game %d, board %d exceeds the number of participant (%d).", tally_row[winner_h], tally_row[game_h], tally_row[board_h], part_count);}
+      if((tally_row[winner_score_h] > 1000) || (tally_row[loser_score_h] > 1000)){printf("Warning: The point of game %d, board %d is more than 1000 (%d vs %d). Maybe something fishy.", tally_row[game_h], tally_row[board_h], tally_row[winner_score_h], tally_row[loser_score_h]);}
+      if(foo < 0){printf("Warning: In game %d, board %d, the winner scored lower than loser (%d vs %d).", tally_row[game_h], tally_row[board_h], tally_row[winner_score_h], tally_row[loser_score_h]);}
+      game[winner_index] =  (uint8_t)tally_row[game_h];
+      board[winner_index] = (uint8_t)tally_row[board_h];
+      board[winner_index] |= (tally_row[winner_h] == tally_row[first_h]) << 7;
+      player[winner_index] = (uint8_t)tally_row[winner_h];
+      
       if(foo >= 350){foo = 350;}
       if(foo <= 350){foo = -350;}
       point[winner_index] = foo & 0x3FF;
@@ -204,11 +207,11 @@ int main()
 
     if(tally_row[loser_h])
     {
-      game[loser_index] = tally_row[game_h];
-      board[loser_index] = tally_row[board_h];
+      if(tally_row[winner_h] > part_count){printf("Warning: The loser's ID (%d) of game %d, board %d exceeds the number of participant (%d).", tally_row[loser_h], tally_row[game_h], tally_row[board_h], part_count);}
+      game[loser_index] =  (uint8_t)tally_row[game_h];
+      board[loser_index] = (uint8_t)tally_row[board_h];
       board[loser_index] |= (tally_row[loser_h] == tally_row[first_h]) << 7;
-      if(tally_row[winner_h] > part_count){printf("Warning: The loser's ID (%d) of game %d, board %d exceeds the number of participant (%d).", tally_row[winner_h], game[winner_index], board[winner_index], part_count);}
-      player[loser_index] = tally_row[loser_h];
+      player[loser_index] = (uint8_t)tally_row[loser_h];
       foo = tally_row[loser_score_h] - tally_row[winner_score_h];
       if(foo >= 350){foo = 350;}
       if(foo <= 350){foo = -350;}
@@ -221,18 +224,38 @@ int main()
     winner_index++;
     loser_index++;
   }
+  summary_row = winner_index;
   max_game = 0;
-  for(int count = 0; count < (line_count * 2); count++)
+  for(int count = 0; count < summary_row; count++)
   {
-    max_game =  max_column < game[count] ? game[count] : max_column;
+    max_game = (uint8_t)max_game < game[count] ? game[count] : max_game;
   }
-  for(int count = 0; count < (line_count * 2); count++)
+  // count unique player in the latest game and create versus table
+  present_player = malloc(sizeof(int8_t) * (unsigned int)part_count);
+  matching_table = (uint8_t**)malloc(sizeof(uint8_t*) * (unsigned int)part_count);
+  for(int count = 0; count < max_game; count++)
   {
-    present_player =  max_column < game[count] ? game[count] : max_column;
+    matching_table[count] = (uint8_t)malloc(sizeof(uint8_t) * (unsigned int)max_game);
   }
+  // how to find versus?
+  player_count = 0;
+  for(int count = 0; count < summary_row; count++)
+  {
+    int count_2 = 0;
+    for(count_2 = 0; count_2 < player_count; count_2++)
+    {
+      if(present_player[count_2] == player[count]){matching_table;}
+    }
+    if(count_2 == player_count)
+    {
+      present_player[player_count] = player[count];
+      player_count++;
+    }
+  }
+  present_player = realloc(present_player, sizeof(int8_t) * (unsigned int)player_count);
+  matching_table = (uint8_t**)realloc(matching_table, sizeof(uint8_t*) * (unsigned int)player_count);
 
-  printf("%d, %d\n", line_count, part_count);
-
+  
   free(full_tally_file_name);
   free(full_list_file_name);
   free(working_dir);
